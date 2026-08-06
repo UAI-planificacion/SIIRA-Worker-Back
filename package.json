@@ -1,0 +1,34 @@
+{
+	"name"            : "siira-worker-back",
+	"version"         : "1.0.0",
+	"description"     : "SIIRA background job worker for enrollment processing",
+	"main"            : "dist/index.js",
+	"scripts"         : {
+		"dev"          : "tsx watch src/index.ts",
+		"build"        : "tsc",
+		"start"        : "node dist/index.js",
+		"enqueue-test" : "tsx src/test-enqueue.ts"
+	},
+	"dependencies"    : {
+		"@prisma/client" : "^6.0.0",
+		"bullmq"         : "^5.0.0",
+		"dotenv"         : "^16.4.5",
+		"fastify"        : "^4.28.1",
+		"ioredis"        : "^5.4.1"
+	},
+	"devDependencies" : {
+		"@types/node" : "^20.14.9",
+		"prisma"      : "^6.0.0",
+		"tsx"         : "^4.16.0",
+		"typescript"  : "^5.5.2"
+	},
+	"pnpm"            : {
+		"onlyBuiltDependencies" : [
+			"@prisma/client",
+			"@prisma/engines",
+			"esbuild",
+			"msgpackr-extract",
+			"prisma"
+		]
+	}
+}

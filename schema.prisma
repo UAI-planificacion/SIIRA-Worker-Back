@@ -1,0 +1,454 @@
+generator client {
+    provider     = "prisma-client"
+    output       = "../src/generated/prisma"
+    moduleFormat = "cjs"
+}
+
+
+datasource db {
+    provider = "postgresql"
+}
+
+
+model Student {
+    id              String   @id @default(ulid())
+    rut             String   @unique                                    // "rut"
+    fullName        String   @map("full_name")                          // "nombre"
+    email           String   @unique                                    // "correo"
+    priorityStartAt DateTime @map("priority_start_at")                  // "prioridadInicio" (Timestamp IP)
+    maxCreditsLimit Int      @default( 30 ) @map("max_credits_limit")   // "limiteCreditosMax"
+
+    createdAt       DateTime @default(now()) @map("created_at")         // "createdAt"
+    updatedAt       DateTime @updatedAt @map("updated_at")              // "updatedAt"
+
+    studyPlanTemplates StudyPlanTemplate[]
+    enrollments        Enrollment[]
+    subjectHistories   StudentSubjectHistory[]
+
+    careerId String @map("career_id")
+    career   Career @relation(fields: [careerId], references: [id])
+
+    @@map("students")
+}
+
+
+enum PeriodStatus {
+    Pending     // Aún no comienza el periodo en startDate
+    InProgress  //EN progreso cuando startdate < now < endDate
+    Opened      //Abierto cuando openingDate < now < endDate
+    Closed      //Cerrado cuando endDate === now
+}
+
+
+enum PeriodType {
+    ANUAL
+    TRIMESTRAL
+    SEMESTRAL
+    VERANO
+    BIMESTRAL
+}
+
+
+model Period {
+    id              String @id
+    name            String
+    costCenterId    String      @map("cost_center_id")
+    startDate       DateTime    @map("start_date")
+    endDate         DateTime    @map("end_date")
+    openingDate     DateTime?   @map("opening_date")
+    closingDate     DateTime?   @map("closing_date")
+
+    status          PeriodStatus    @default(InProgress)
+    type            PeriodType      @default(SEMESTRAL)
+
+    sections        Section[]
+    processConfig   ProcessConfig?
+    history         StudentSubjectHistory[]
+
+    createdAt DateTime  @default(now()) @map("created_at")            // "createdAt"
+    updatedAt DateTime  @updatedAt @map("updated_at")                 // "updatedAt"
+
+    @@index([name])
+    @@map("periods")
+}
+
+
+enum ProcessStatus {
+    PENDING
+    PLANNING_STAGE
+    ENROLLMENT_STAGE
+    CLOSED
+}
+
+
+model ProcessConfig {
+    id                  String   @id @default(ulid())
+
+    periodId            String @unique @map("period_id")
+    period              Period @relation(fields: [periodId], references: [id], onDelete: Cascade)
+
+    status              ProcessStatus @default(PENDING)               // "estado"
+
+    totalRealStudents   Int? @default(0)      @map("total_real_students")          // "totalAlumnosReal"
+
+    planningStartDate   DateTime @map("planning_start_date")          // "fechaInicioBorrador"
+    planningEndDate     DateTime @map("planning_end_date")            // "fechaFinBorrador"
+
+    enrollmentStartDate DateTime @map("enrollment_start_date")        // "fechaInicio de toma de ramos"
+    enrollmentEndDate   DateTime @map("enrollment_end_date")          // "fechaFin de toma de ramos"
+
+    createdAt           DateTime @default(now()) @map("created_at")   // "createdAt"
+    updatedAt           DateTime @updatedAt @map("updated_at")        // "updatedAt"
+
+    @@map("process_configs")
+}
+
+
+model Professor {
+    id        String    @id @default(ulid())
+    name      String
+    email     String?   @unique
+    isMock    Boolean   @default( false ) @map("is_mock")
+
+    sessions  Session[]
+
+    createdAt DateTime  @default(now()) @map("created_at")            // "createdAt"
+    updatedAt DateTime  @updatedAt @map("updated_at")                 // "updatedAt"
+
+    @@index([ name ])
+    @@map("professors")
+}
+
+
+enum Building {
+    PREGRADO_A
+    PREGRADO_B
+    POSTGRADO_C
+    TALLERES_D
+    TALLERES_E
+    PREGRADO_F
+    ERRAZURIZ
+    VITACURA
+    VINA_A
+    VINA_B
+    VINA_C
+    VINA_D
+    VINA_E
+    VINA_F
+    Z
+}
+
+
+enum SpaceType {
+    ROOM
+    STUDY_ROOM
+    MEETING_ROOM
+    POSTGRADUATE_ROOM
+    AUDITORIO
+    LAB
+    LABPC
+    DIS
+    CORE
+    MULTIPURPOSE
+}
+
+
+model Module {
+    id         Int               @id @default(autoincrement())
+    code       String
+    difference ModuleDifference?
+    startHour  String            @map("start_hour")
+    endHour    String            @map("end_hour")
+    isActive   Boolean           @default( true ) @map("is_active")
+
+    sessions  Session[]
+
+    createdAt  DateTime          @default(now()) @map("created_at")    // "createdAt"
+    updatedAt  DateTime          @updatedAt @map("updated_at")         // "updatedAt"
+
+    @@index([ code ])
+    @@map("modules")
+}
+
+
+model Career {
+    id        String   @id @default(ulid())
+    name      String                                    // Ej: "Ingeniería Civil en Informática"
+    code      String   @unique                          // Ej: "ICI-INF"
+
+    // Relaciones
+    students    Student[]
+    planSubjects CareerPlanSubject[]
+
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @updatedAt @map("updated_at")
+
+    @@map("careers")
+}
+
+
+model CareerPlanSubject {
+    id             String   @id @default(ulid())
+    careerId       String   @map("career_id")
+    subjectId      String   @map("subject_id")
+    semesterNumber Int      @map("semester_number")    // 1 a 12 (En qué semestre de esta carrera va)
+    isRequired     Boolean  @default(true) @map("is_required") // Obligatorio u Optativo/Electivo
+
+    // Relaciones
+    career  Career  @relation(fields: [careerId], references: [id])
+    subject Subject @relation(fields: [subjectId], references: [id])
+
+    prerequisites  String[] @default([]) @map("prerequisites")
+
+    createdAt      DateTime @default(now()) @map("created_at")
+    updatedAt      DateTime @updatedAt @map("updated_at")
+
+    @@unique([careerId, subjectId])                   // Un ramo no se repite dos veces en la misma carrera
+    @@map("career_plan_subjects")
+}
+
+
+model Subject {
+    id              String      @id
+    name            String      @unique
+    isActive        Boolean     @default( true ) @map("is_active")
+    spaceType       SpaceType?  @map("space_type")
+    credits         Int         @default( 3 )
+    description     String?
+
+    spaceSizeId     SizeValue?  @map("space_size_id")
+    spaceSize       Size?       @relation(fields: [spaceSizeId], references: [id])
+
+    // workshop        Int @default( 0 )   // Taller
+    // lecture         Int @default( 0 )   // Cátedra
+    // tutoringSession Int @default( 0 )   // Ayudantía
+    // laboratory      Int @default( 0 )   // Laboratorio
+
+    sections        Section[]
+    careers         CareerPlanSubject[]
+    history         StudentSubjectHistory[]
+
+    createdAt       DateTime         @default(now()) @map("created_at")    // "createdAt"
+    updatedAt       DateTime         @updatedAt @map("updated_at")         // "updatedAt"
+
+    @@index([name])
+    @@map("subjects")
+}
+
+
+enum SubjectStatus {
+    APPROVED   // Aprobado
+    FAILED     // Reprobado
+    IN_PROGRESS // Cursando actualmente
+    CREDITED   // Convalidado / Homologado
+}
+
+
+model StudentSubjectHistory {
+    id              String        @id @default(ulid())
+    status          SubjectStatus @default(IN_PROGRESS)
+    finalGrade      Float?        @map("final_grade")      // Nota final (Ej: 5.5, opcional)
+
+    // Relaciones
+    periodId        String        @map("period_id")
+    period          Period        @relation(fields: [periodId], references: [id], onDelete: Cascade)
+
+    studentId       String        @map("student_id")
+    student         Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+    subjectId       String        @map("subject_id")
+    subject         Subject       @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+    createdAt       DateTime      @default(now()) @map("created_at")
+    updatedAt       DateTime      @updatedAt @map("updated_at")
+
+    // Un alumno no debería tener dos registros para el mismo ramo en el MISMO período
+    @@unique([studentId, subjectId, periodId])
+    @@map("student_subject_history")
+}
+
+
+model Section {
+    id              String @id @default(ulid())
+    code            Int
+    isClosed        Boolean     @default(false) @map("is_closed")
+    groupId         String      @map("group_id")
+    startDate       DateTime    @map("start_date")
+    endDate         DateTime    @map("end_date")
+    spaceType       SpaceType?  @map("space_type")
+    registered      Int?        @default( 0 )
+    building        Building?
+    quota           Int
+
+    periodId        String @map("period_id")
+    period          Period @relation(fields: [periodId], references: [id], onDelete: Cascade)
+
+    subjectId       String @map("subject_id")
+    subject         Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+    // workshop        Int @default( 0 )   // Taller
+    // lecture         Int @default( 0 )   // Cátedra
+    // tutoringSession Int @default( 0 )   // Ayudantía
+    // laboratory      Int @default( 0 )   // Laboratorio
+
+    sessions        Session[]
+
+    createdAt       DateTime         @default(now()) @map("created_at")    // "createdAt"
+    updatedAt       DateTime         @updatedAt @map("updated_at")         // "updatedAt"
+
+    @@map("sections")
+}
+
+
+enum SessionCode {
+    C // Cátedra
+    A // Ayudantía
+    T // Taller
+    L // Laboratorio
+}
+
+
+model Session {
+    id                  String      @id @default(ulid())
+    name                SessionCode
+    spaceId             String?     @map("space_id")
+    chairsAvailable     Int?        @map("chairs_available")
+    isEnglish           Boolean     @default( false ) @map("is_english")
+    date                DateTime
+    quota               Int     @default( 30 )
+
+    sectionId           String      @map("section_id")
+    section             Section     @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+    professorId         String?     @map("professor_id")
+    professor           Professor?  @relation(fields: [professorId], references: [id])
+
+    moduleId            Int         @map("module_id")
+    module              Module      @relation(fields: [moduleId], references: [id])
+
+    studyPlanDetails    StudyPlanDetail[]
+    enrollments         Enrollment[]
+
+    createdAt           DateTime    @default(now()) @map("created_at")    // "createdAt"
+    updatedAt           DateTime    @updatedAt @map("updated_at")         // "updatedAt"
+
+    @@map("sessions")
+}
+
+
+enum SizeValue {
+    XS
+    XE
+    S
+    SE
+    MS
+    M
+    L
+    XL
+    XXL
+}
+
+
+model Size {
+    id          SizeValue @id
+    detail      String
+    min         Int?
+    max         Int?
+    lessThan    Int?      @map("less_than")
+    greaterThan Int?      @map("greater_than")
+
+    subjects    Subject[]
+
+    createdAt   DateTime  @default(now()) @map("created_at")            // "createdAt"
+    updatedAt   DateTime  @updatedAt @map("updated_at")                 // "updatedAt"
+
+    @@map("sizes")
+}
+
+
+enum ModuleDifference {
+    A
+    B
+    C
+    D
+    E
+    F
+    G
+    H
+    I
+    J
+    K
+    L
+    M
+    N
+    O
+    P
+    Q
+    R
+    S
+    T
+    U
+    V
+    W
+    X
+    Y
+    Z
+}
+
+
+model StudyPlanTemplate {
+    id               String            @id @default(ulid())
+
+    studentId        String            @map("student_id")
+    student          Student           @relation(fields: [ studentId ], references: [ id ])
+
+    freeze           Boolean           @default( false ) @map("freeze")
+
+    createdAt        DateTime          @default(now()) @map("created_at")    // "createdAt"
+    updatedAt        DateTime          @updatedAt @map("updated_at")         // "updatedAt"
+
+    studyPlanDetails StudyPlanDetail[]
+
+    @@index([ studentId ])
+    @@map("study_plan_templates")
+}
+
+
+model StudyPlanDetail {
+    id                  String            @id @default(ulid())
+
+    studyPlanTemplateId String            @map("study_plan_template_id")
+    studyPlanTemplate   StudyPlanTemplate @relation(fields: [ studyPlanTemplateId ], references: [ id ])
+
+    sessionId           String            @map("session_id")
+    session             Session           @relation(fields: [ sessionId ], references: [ id ])
+
+    createdAt           DateTime          @default(now()) @map("created_at")    // "createdAt"
+    updatedAt           DateTime          @updatedAt @map("updated_at")         // "updatedAt"
+
+    @@map("study_plan_details")
+}
+
+
+enum EnrollmentStatus {
+    PROCESSING // PROCESANDO
+    CONFIRMED  // CONFIRMADA
+    REJECTED   // RECHAZADA
+}
+
+
+model Enrollment {
+    id          String              @id @default(ulid())
+    ticketId    String              @unique @map("ticket_id")              // "ticketId" (Correlativo Fast-Path/SSE)
+    status      EnrollmentStatus    @default( PROCESSING ) @map("status")  // "estado"
+    createdAt   DateTime            @default(now()) @map("created_at")     // "fecha"
+
+    // Relaciones / Relations
+    sessionId   String              @map("session_id")
+    session     Session             @relation(fields: [ sessionId ], references: [ id ])
+
+    studentId   String              @map("student_id")                    // "alumnoId"
+    student     Student             @relation(fields: [ studentId ], references: [ id ])
+
+    @@map("enrollments")
+}
