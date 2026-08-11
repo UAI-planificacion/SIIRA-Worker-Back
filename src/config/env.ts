@@ -13,6 +13,7 @@ interface Env {
 	WORKER_CONCURRENCY   : number;
 	PORT                 : number;
 	ENROLLMENT_STATE_TTL : number;
+	CORE_BACK_URL        : string;
 }
 
 
@@ -56,4 +57,6 @@ export const env: Env = {
 	WORKER_CONCURRENCY   : getNumber( "WORKER_CONCURRENCY", 10 ),
 	PORT                 : getNumber( "PORT", 4001 ),
 	ENROLLMENT_STATE_TTL : getNumber( "ENROLLMENT_STATE_TTL", 86400 ),
+	CORE_BACK_URL        : getOptionalString( "CORE_BACK_URL" ) || "http://localhost:5050",
 };
+
