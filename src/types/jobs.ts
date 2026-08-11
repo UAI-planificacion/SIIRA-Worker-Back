@@ -10,8 +10,10 @@ export interface EnrollSessionsPayload {
 export interface UnenrollSessionsPayload {
 	studentId  : string;
 	periodId   : string;
+	ticketId   : string;
 	sessionIds : string[];
 }
+
 
 
 export type JobType = "ENROLL_SECTIONS" | "UNENROLL_SECTIONS";
