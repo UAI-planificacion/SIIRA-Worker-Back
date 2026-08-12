@@ -11,9 +11,21 @@ import type { UnenrollSessionsPayload } from "../types/jobs";
 
 
 export const unenrollProcessor = async ( job: Job<UnenrollSessionsPayload> ): Promise<void> => {
-	const { studentId, periodId, sessionIds } = job.data;
+	const { email, periodId, sessionIds } = job.data;
 
-	console.log( `[unenrollProcessor] Processing job ${job.id} — student: ${studentId}, sessions: ${sessionIds.length}` );
+	console.log( `[unenrollProcessor] Processing job ${ job.id } — student email: ${ email }, sessions: ${ sessionIds.length }` );
+
+	// Buscar al estudiante por su email único para obtener su studentId
+	const student = await prisma.student.findUnique({
+		where : { email },
+	});
+
+	if ( !student ) {
+		console.error( `[unenrollProcessor] Student with email ${ email } not found.` );
+		throw new Error( `Student with email ${ email } not found` );
+	}
+
+	const studentId = student.id;
 
 	// ── 1. Eliminar registros en PostgreSQL (fuente de verdad primaria) ───────
 	// Si esto falla, BullMQ reintentará con backoff exponencial.

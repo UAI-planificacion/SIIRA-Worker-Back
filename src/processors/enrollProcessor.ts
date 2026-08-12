@@ -18,11 +18,23 @@ import { setEnrollmentState }   from "../services/enrollmentStateService";
 
 
 export const enrollProcessor = async ( job: Job<EnrollSessionsPayload> ): Promise<void> => {
-	const { studentId, periodId, ticketId, sessionIds } = job.data;
+	const { email, periodId, ticketId, sessionIds } = job.data;
 
 	console.log(
-		`[enrollProcessor] Processing job ${job.id} — student: ${studentId}, sessions: ${sessionIds.length}`
+		`[enrollProcessor] Processing job ${ job.id } — student email: ${ email }, sessions: ${ sessionIds.length }`
 	);
+
+	// Buscar al estudiante por su email único para obtener su studentId
+	const student = await prisma.student.findUnique({
+		where : { email },
+	});
+
+	if ( !student ) {
+		console.error( `[enrollProcessor] Student with email ${ email } not found.` );
+		throw new Error( `Student with email ${ email } not found` );
+	}
+
+	const studentId = student.id;
 
 	// ── 1. Decrementar cupos atómicamente en Redis ────────────────────────────
 	// El script Lua garantiza que no hay race condition si otro worker

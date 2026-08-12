@@ -26,7 +26,7 @@ const run = async (): Promise<void> => {
 	await testQueue.add(
 		"ENROLL_SECTIONS",
 		{
-			studentId  : "student-001",
+			email      : "kevin.candia@uai.cl",
 			periodId   : "period-001",
 			ticketId   : `ticket-${Date.now()}`,
 			sessionIds : [ "session-001", "session-002" ],

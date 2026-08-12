@@ -1,6 +1,6 @@
 // ─── Job Payloads ────────────────────────────────────────────────────────────
 export interface EnrollSessionsPayload {
-	studentId  : string;
+	email      : string;
 	periodId   : string;
 	ticketId   : string;
 	sessionIds : string[];
@@ -8,7 +8,7 @@ export interface EnrollSessionsPayload {
 
 
 export interface UnenrollSessionsPayload {
-	studentId  : string;
+	email      : string;
 	periodId   : string;
 	ticketId   : string;
 	sessionIds : string[];
