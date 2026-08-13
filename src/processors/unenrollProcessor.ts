@@ -2,23 +2,30 @@ import { Job } from "bullmq";
 
 import { Prisma } from "../generated/prisma/client";
 
-import { prisma }                       from "../config/prisma";
-import { redis }                        from "../config/redis";
-import { env }                          from "../config/env";
-import { incrementQuotaAtomic }         from "../services/quotaService";
-import { updateSessionsInState }        from "../services/enrollmentStateService";
-import type { UnenrollSessionsPayload } from "../types/jobs";
+import { prisma }               from "../config/prisma";
+import { redis }                from "../config/redis";
+import { env }                  from "../config/env";
+import { incrementQuotaAtomic } from "../services/quotaService";
+import { updateSessionsInState } from "../services/enrollmentStateService";
+import type {
+	UnenrollSessionsPayload,
+}                               from "../types/jobs";
+import { notifyCore }           from "../services/notificationService";
+import {
+	EnrollmentActionType,
+	EnrollmentNotifyStatus,
+}                               from "../services/dto/notify-enrollment.dto";
 
 
 export const unenrollProcessor = async ( job: Job<UnenrollSessionsPayload> ): Promise<void> => {
-	const { email, periodId, sessionIds } = job.data;
+	const { email, periodId, ticketId, sessionIds } = job.data;
 
-	console.log( `[unenrollProcessor] Processing job ${ job.id } — student email: ${ email }, sessions: ${ sessionIds.length }` );
+	console.log( `[unenrollProcessor] Processing job ${ job.id } — student email: ${ email }, session: ${ sessionIds[ 0 ] }` );
 
 	// Buscar al estudiante por su email único para obtener su studentId
-	const student = await prisma.student.findUnique({
+	const student = await prisma.student.findUnique( {
 		where : { email },
-	});
+	} );
 
 	if ( !student ) {
 		console.error( `[unenrollProcessor] Student with email ${ email } not found.` );
@@ -26,37 +33,92 @@ export const unenrollProcessor = async ( job: Job<UnenrollSessionsPayload> ): Pr
 	}
 
 	const studentId = student.id;
+	const sessionId = sessionIds[ 0 ];
 
-	// ── 1. Eliminar registros en PostgreSQL (fuente de verdad primaria) ───────
-	// Si esto falla, BullMQ reintentará con backoff exponencial.
-	// Redis NO se modifica hasta que la DB confirme el borrado.
-	await prisma.$transaction( async ( tx: Prisma.TransactionClient ) => {
-		await tx.enrollment.deleteMany({
-			where: {
-				studentId,
-				sessionId : { in: sessionIds },
-			},
-		});
-	});
+	if ( !sessionId ) {
+		console.error( `[unenrollProcessor] Job ${ job.id } has no sessionId.` );
+		return;
+	}
 
-	console.log( `[unenrollProcessor] Job ${job.id} — ${sessionIds.length} enrollment(s) deleted from DB.` );
+	let ssec       = "";
+	let wasDeleted = false;
 
-	// ── 2. Liberar cupos en Redis post-confirmación de DB ─────────────────────
-	await incrementQuotaAtomic( redis, sessionIds );
+	// ── 1. Eliminar registros en PostgreSQL primero ───────────────────────────
+	try {
+		await prisma.$transaction( async ( tx: Prisma.TransactionClient ) => {
+			const session = await tx.session.findUnique( {
+				where  : { id: sessionId },
+				select : {
+					id      : true,
+					section : {
+						select: {
+							code    : true,
+							subject : {
+								select: {
+									id: true,
+								},
+							},
+						},
+					},
+				},
+			} );
 
-	console.log( `[unenrollProcessor] Job ${job.id} — quota released for ${sessionIds.length} session(s).` );
+			// Eliminar matrícula en PostgreSQL
+			const deleteResult = await tx.enrollment.deleteMany( {
+				where: {
+					studentId,
+					sessionId,
+				},
+			} );
 
-	// ── 3. Actualizar estado del alumno en Redis ──────────────────────────────
+			// Solo incrementar cupos si realmente se eliminó una matrícula
+			if ( deleteResult.count > 0 ) {
+				await tx.session.update( {
+					where : { id: sessionId },
+					data  : {
+						chairsAvailable: {
+							increment: 1,
+						},
+						quota: {
+							increment: 1,
+						},
+					},
+				} );
+
+				ssec       = session ? `${ session.section.subject.id }-${ session.section.code }` : "";
+				wasDeleted = true;
+			}
+		} );
+	} catch ( dbError ) {
+		console.error( `[unenrollProcessor] Job ${ job.id } — DB transaction failed.`, dbError );
+		throw dbError;
+	}
+
+	console.log( `[unenrollProcessor] Job ${ job.id } — unenrollment processed in DB. Was deleted: ${ wasDeleted }` );
+
+	// ── 2. Sincronizar cupos y estado del alumno en Redis ─────────────────────
+	if ( wasDeleted ) {
+		await incrementQuotaAtomic( redis, [ sessionId ] );
+	}
+
 	await updateSessionsInState(
 		redis,
 		studentId,
 		periodId,
-		[],           // addIds: ninguna sesión nueva
-		sessionIds,   // removeIds: las sesiones que se dieron de baja
+		[],             // addIds: ninguna sesión nueva
+		[ sessionId ],   // removeIds: la sesión que se dio de baja
 		env.ENROLLMENT_STATE_TTL
 	);
 
-	console.log(
-		`[unenrollProcessor] Job ${job.id} completed — student ${studentId} enrollment state updated.`
-	);
+	// ── 3. Notificar a siira-core-back ─────────────────────────────────────────
+	await notifyCore( {
+		ticketId,
+		studentId,
+		sessionId,
+		actionType : EnrollmentActionType.UNENROLL,
+		status     : EnrollmentNotifyStatus.SUCCESS,
+		ssec,
+	} );
+
+	console.log( `[unenrollProcessor] Job ${ job.id } completed — student ${ studentId } enrollment state updated and core notified.` );
 };
