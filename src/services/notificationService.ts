@@ -1,19 +1,11 @@
 import * as http  from "http";
 import * as https from "https";
 
-import { env } from "../config/env";
+import { env }                 from "../config/env";
+import { NotifyEnrollmentDto } from "./dto/notify-enrollment.dto";
 
 
-export interface NotificationPayload {
-	ticketId   : string;
-	studentId  : string;
-	sessionIds : string[];
-	actionType : "ENROLL" | "UNENROLL";
-	status     : "SUCCESS" | "FAILED" | "PARTIAL";
-}
-
-
-export const notifyCore = async ( payload: NotificationPayload ): Promise<void> => {
+export const notifyCore = async ( payload: NotifyEnrollmentDto ): Promise<void> => {
 	const urlStr   = `${ env.CORE_BACK_URL }/study-plan/notify-enrollment`;
 	const postData = JSON.stringify( payload );
 
@@ -24,15 +16,16 @@ export const notifyCore = async ( payload: NotificationPayload ): Promise<void> 
 			{
 				method  : "POST",
 				headers : {
-					"Content-Type"   : "application/json",
-					"Content-Length" : Buffer.byteLength( postData ),
+					"Content-Type"          : "application/json",
+					"Content-Length"        : Buffer.byteLength( postData ),
+					"X-Notification-Secret" : env.NOTIFICATION_SECRET_KEY,
 				},
 			},
 			( res ) => {
 				res.on( "data", () => {} );
 				res.on( "end", () => {
 					if ( res.statusCode && res.statusCode >= 200 && res.statusCode < 300 ) {
-						console.log( `[notifyCore] Notification sent successfully for ticket ${ payload.ticketId }` );
+						console.log( `[notifyCore] Notification sent successfully for ticket ${ payload.ticketId } — Session: ${ payload.sessionId }` );
 					} else {
 						console.error( `[notifyCore] Core returned error: ${ res.statusCode }` );
 					}
