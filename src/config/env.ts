@@ -14,6 +14,8 @@ interface Env {
 	PORT                 : number;
 	ENROLLMENT_STATE_TTL : number;
 	CORE_BACK_URL        : string;
+
+    NOTIFICATION_SECRET_KEY: string;
 }
 
 
@@ -58,5 +60,7 @@ export const env: Env = {
 	PORT                 : getNumber( "PORT", 4001 ),
 	ENROLLMENT_STATE_TTL : getNumber( "ENROLLMENT_STATE_TTL", 86400 ),
 	CORE_BACK_URL        : getOptionalString( "CORE_BACK_URL" ) || "http://localhost:5050",
+
+    NOTIFICATION_SECRET_KEY: getRequiredString( "NOTIFICATION_SECRET_KEY" ),
 };
 
