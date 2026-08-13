@@ -27,11 +27,10 @@ export const getEnrollmentState = async (
 
 // ─── Escribir estado completo ─────────────────────────────────────────────────
 export const setEnrollmentState = async (
-	redis: Redis,
-	state: EnrollmentState,
-	ttlSeconds: number
+	redis       : Redis,
+	state       : EnrollmentState,
+	ttlSeconds  : number
 ): Promise<void> => {
-
 	const key = buildEnrollmentKey( state.studentId, state.periodId );
 
 	await redis.set( key, JSON.stringify( state ), "EX", ttlSeconds );
