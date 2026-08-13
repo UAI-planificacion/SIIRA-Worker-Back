@@ -2,7 +2,6 @@ import { Redis } from "ioredis";
 
 import type { QuotaResult, QuotaResultMap, SessionQuota } from "../types/jobs";
 
-
 // ─── Script Lua: Decremento atómico de cupo ───────────────────────────────────
 // Recibe: KEYS[1] = clave Redis (session:quota:{sessionId})
 // Retorna: "ok" | "no-quota" | "not-found"
@@ -10,7 +9,6 @@ import type { QuotaResult, QuotaResultMap, SessionQuota } from "../types/jobs";
 // La atomicidad de Lua garantiza que si dos workers ejecutan este script
 // simultáneamente sobre la misma clave, solo uno de ellos podrá decrementar
 // el cupo. Redis ejecuta scripts Lua en un solo hilo (single-threaded).
-
 const DECREMENT_QUOTA_SCRIPT = `
 local raw = redis.call('GET', KEYS[1])
 
@@ -32,11 +30,9 @@ redis.call('SET', KEYS[1], cjson.encode(data))
 return 'ok'
 `;
 
-
 // ─── Script Lua: Incremento atómico de cupo ───────────────────────────────────
 // Recibe: KEYS[1] = clave Redis (session:quota:{sessionId})
 // Retorna: "ok" | "not-found"
-
 const INCREMENT_QUOTA_SCRIPT = `
 local raw = redis.call('GET', KEYS[1])
 
@@ -58,19 +54,15 @@ redis.call('SET', KEYS[1], cjson.encode(data))
 return 'ok'
 `;
 
-
 // ─── Script Lua: Rollback de decremento ──────────────────────────────────────
 // Idéntico al incremento: revierte chairsAvailable+1 / registered-1
-
 const ROLLBACK_QUOTA_SCRIPT = INCREMENT_QUOTA_SCRIPT;
 
 
 const buildQuotaKey = ( sessionId: string ): string =>
 	`session:quota:${sessionId}`;
 
-
 // ─── Decremento atómico ───────────────────────────────────────────────────────
-
 export const decrementQuotaAtomic = async (
 	redis: Redis,
 	sessionIds: string[]
@@ -92,9 +84,7 @@ export const decrementQuotaAtomic = async (
 	return resultMap;
 };
 
-
 // ─── Rollback de decremento ───────────────────────────────────────────────────
-
 export const rollbackQuotaDecrement = async (
 	redis: Redis,
 	sessionIds: string[]
@@ -108,9 +98,7 @@ export const rollbackQuotaDecrement = async (
 	await Promise.all( promises );
 };
 
-
 // ─── Incremento atómico (desinscripción) ─────────────────────────────────────
-
 export const incrementQuotaAtomic = async (
 	redis: Redis,
 	sessionIds: string[]
@@ -124,9 +112,7 @@ export const incrementQuotaAtomic = async (
 	await Promise.all( promises );
 };
 
-
 // ─── Lectura de cupo (opcional para debug/validación) ────────────────────────
-
 export const getSessionQuota = async (
 	redis: Redis,
 	sessionId: string
